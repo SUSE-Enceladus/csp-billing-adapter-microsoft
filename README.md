@@ -1,0 +1,1 @@
+# csp-billing-adapter-microsoft
