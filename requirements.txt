@@ -1,0 +1,5 @@
+csp-billing-adapter
+requests
+pluggy
+msal
+azure.identity
