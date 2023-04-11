@@ -1,0 +1,12 @@
+include LICENSE
+include CONTRIBUTING.md
+include README.md
+include csp-billing-adapter-microsoft.spec
+include requirements.txt
+include requirements-test.txt
+include requirements-dev.txt
+
+recursive-include tests *
+recursive-exclude * __pycache__
+recursive-exclude * *.coverage
+recursive-exclude * *.py[co]
