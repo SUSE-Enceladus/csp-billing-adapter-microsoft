@@ -32,16 +32,12 @@ from csp_billing_adapter.config import Config
 
 log = logging.getLogger('CSPBillingAdapter')
 
-METADATA_ADDR = 'http://169.254.169.254/metadata'
-METADATA_API_VERSION = '?api-version=2021-12-13'
-METADATA_INSTANCE_PATH = '/instance'
-METADATA_TOKEN_PATH = '/identity/oauth2/token'
-METADATA_TOKEN_RESOURCE = '&resource=https://management.azure.com/'
-
-METADATA_INSTANCE_URL = METADATA_ADDR + METADATA_INSTANCE_PATH
-METADATA_TOKEN_URL = \
-    METADATA_ADDR + METADATA_TOKEN_PATH + METADATA_API_VERSION + \
-    METADATA_TOKEN_RESOURCE
+METADATA_URL = 'http://169.254.169.254/metadata/'
+COMPUTE_URL = METADATA_URL + 'instance/compute?api-version=2017-08-01'
+# version 2020-09-01 include license type
+# for more info check https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#attested-data
+SIGNATURE_URL = METADATA_URL + 'attested/document?api-version=2020-09-01'
+METADATA_HEADER = {'Metadata': 'True'}
 
 
 @csp_billing_adapter.hookimpl
@@ -81,55 +77,54 @@ def get_account_info(config: Config):
     The information contains the metadata for compute and network.
     """
     account_info = _get_metadata()
-    account_info['compute'] = json.loads(account_info.get('compute', '{}'))
-    account_info['network'] = json.loads(account_info.get('network', '{}'))
     account_info['cloud_provider'] = get_csp_name(config)
 
     return account_info
 
 
-def get_api_header():
-    """
-    Get the header to be used in requests
-
-    Prefer IMDS which requires a token.
-    """
-    request = urllib.request.Request(
-        METADATA_TOKEN_URL,
-        headers={'Metadata': 'True'},
-        method='GET'
-    )
-
-    try:
-        token = urllib.request.urlopen(request).read().decode()
-    except urllib.error.URLError as error:
-        log.error(f'Failed to retrieve metadata token: {str(error)}')
-        return {}
-
-    return token
-
-
 def _get_metadata():
-    metadata_options = ['compute', 'network']
+    metadata = {}
+    try:
+        metadata = _get_signature()
+        metadata['compute'] = _get_compute_metadata()
+    except ValueError as error:
+        log.error('Could not load JSON from metadata: {}'.format(error))
+        for key in ['compute', 'signature']:
+            if not metadata.get(key):
+                metadata[key] = {}
+
+    return metadata
+
+
+def _get_compute_metadata():
+    compute = json.loads(_fetch_metadata(COMPUTE_URL))
+
     return {
-        metadata_option: _fetch_metadata(metadata_option)
-        for metadata_option in metadata_options
+        'offer': compute.get('offer'),
+        'location': compute.get('location')
     }
 
 
-def _fetch_metadata(uri):
+def _get_signature():
+    attested_data = json.loads(_fetch_metadata(SIGNATURE_URL))
+    del attested_data['encoding']
+
+    return attested_data
+
+
+def _fetch_metadata(url):
     """Return the response of the metadata request."""
-    url = f'{METADATA_INSTANCE_URL}/{uri}{METADATA_API_VERSION}'
     data_request = urllib.request.Request(
         url,
-        headers={'Metadata': 'True'},
+        headers=METADATA_HEADER,
         method='GET'
     )
-
     try:
         value = urllib.request.urlopen(data_request).read()
+        return value.decode()
     except urllib.error.URLError as error:
-        log.error(f'Failed to retrieve metadata for: {url}. {str(error)}')
-        return None
-
-    return value.decode()
+        log.error('Failed to retrieve metadata for: {url}. {error}'.format(
+            url=url,
+            error=str(error)
+        ))
+        return {}
