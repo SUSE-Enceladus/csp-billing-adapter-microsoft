@@ -33,10 +33,11 @@ from csp_billing_adapter.config import Config
 log = logging.getLogger('CSPBillingAdapter')
 
 METADATA_URL = 'http://169.254.169.254/metadata/'
-COMPUTE_URL = METADATA_URL + 'instance/compute?api-version=2017-08-01'
+COMPUTE_URL = METADATA_URL + 'instance/compute?api-version={latest}'
+VERSIONS_URL = METADATA_URL + 'versions'
 # version 2020-09-01 include license type
 # for more info check https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#attested-data
-SIGNATURE_URL = METADATA_URL + 'attested/document?api-version=2020-09-01'
+SIGNATURE_URL = METADATA_URL + 'attested/document?api-version={latest}'
 METADATA_HEADER = {'Metadata': 'True'}
 
 
@@ -97,7 +98,11 @@ def _get_metadata():
 
 
 def _get_compute_metadata():
-    compute = json.loads(_fetch_metadata(COMPUTE_URL))
+    compute = json.loads(
+        _fetch_metadata(
+            COMPUTE_URL.format(latest=api_latest_version)
+        )
+    )
 
     return {
         'offer': compute.get('offer'),
@@ -106,11 +111,24 @@ def _get_compute_metadata():
 
 
 def _get_signature():
-    attested_data = json.loads(_fetch_metadata(SIGNATURE_URL))
+    api_latest_version = _get_latest_api_version()
+
+    attested_data = json.loads(
+        _fetch_metadata(
+            SIGNATURE_URL.format(latest=api_latest_version)
+        )
+    )
     del attested_data['encoding']
 
     return attested_data
 
+
+def _get_latest_api_version():
+    versions = json.loads(_fetch_metadata(VERSIONS_URL))
+    if versions:
+        return versions['apiVersions'][-1]
+
+    return '2017-03-01'
 
 def _fetch_metadata(url):
     """Return the response of the metadata request."""
