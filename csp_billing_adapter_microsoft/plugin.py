@@ -106,7 +106,8 @@ def _get_compute_metadata():
 
     return {
         'offer': compute.get('offer'),
-        'location': compute.get('location')
+        'location': compute.get('location'),
+        'resource_id': compute.get('resourceId')
     }
 
 
