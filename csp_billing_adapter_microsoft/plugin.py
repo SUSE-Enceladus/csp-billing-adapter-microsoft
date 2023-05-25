@@ -35,8 +35,10 @@ log = logging.getLogger('CSPBillingAdapter')
 METADATA_URL = 'http://169.254.169.254/metadata/'
 COMPUTE_URL = METADATA_URL + 'instance/compute?api-version={latest}'
 VERSIONS_URL = METADATA_URL + 'versions'
-# version 2020-09-01 include license type
-# for more info check https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#attested-data
+METADATA_TOKEN = '/identity/oauth2/token?api-version={version}&resource=https://management.azure.com/'
+METADATA_TOKEN_RESOURCE = '&resource=https://management.azure.com/'
+
+METADATA_TOKEN_URL = METADATA_URL + METADATA_TOKEN
 SIGNATURE_URL = METADATA_URL + 'attested/document?api-version={latest}'
 METADATA_HEADER = {'Metadata': 'True'}
 
@@ -112,7 +114,7 @@ def _get_compute_metadata():
 
 
 def _get_signature():
-    api_latest_version = _get_latest_api_version()
+    api_latest_version = _get_latest_api_version(True)
 
     attested_data = json.loads(
         _fetch_metadata(
@@ -124,11 +126,15 @@ def _get_signature():
     return attested_data
 
 
-def _get_latest_api_version():
+def _get_latest_api_version(signature=False):
     versions = json.loads(_fetch_metadata(VERSIONS_URL))
     if versions:
         return versions['apiVersions'][-1]
 
+    if signature:
+        # minimum API version with license type
+        # for more info check https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#attested-data
+        return '2020-09-01'
     return '2017-03-01'
 
 def _fetch_metadata(url):
