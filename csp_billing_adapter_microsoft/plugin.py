@@ -37,7 +37,7 @@ INSTANCE_INFO_URL = METADATA_URL + 'instance?api-version={latest}'
 VERSIONS_URL = METADATA_URL + 'versions'
 METADATA_TOKEN = '/identity/oauth2/token?api-version={version}&resource=https://management.azure.com/'
 
-METADATA_TOKEN_URL = METADATA_URL + METADATA_TOKEN
+TOKEN_URL = METADATA_URL + METADATA_TOKEN
 SIGNATURE_URL = METADATA_URL + 'attested/document?api-version={latest}'
 METADATA_HEADER = {'Metadata': 'True'}
 
