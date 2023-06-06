@@ -33,12 +33,16 @@ from csp_billing_adapter.config import Config
 log = logging.getLogger('CSPBillingAdapter')
 
 METADATA_URL = 'http://169.254.169.254/metadata/'
-INSTANCE_INFO_URL = METADATA_URL + 'instance?api-version={latest}'
 VERSIONS_URL = METADATA_URL + 'versions'
 METADATA_TOKEN = '/identity/oauth2/token?api-version={version}&resource=https://management.azure.com/'
 
 TOKEN_URL = METADATA_URL + METADATA_TOKEN
-SIGNATURE_URL = METADATA_URL + 'attested/document?api-version={latest}'
+# oldest API version
+OLDEST_API_VERSION = '2017-03-01'
+# minimum API version including license type in signature
+# https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#attested-data
+SIGNATURE_API_VERSION = '2020-09-01'
+SIGNATURE_URL = METADATA_URL + 'attested/document?api-version=' + SIGNATURE_API_VERSION
 METADATA_HEADER = {'Metadata': 'True'}
 
 
@@ -92,8 +96,8 @@ def _get_metadata():
         metadata['attestedData'] = _get_signature()
     except ValueError as error:
         log.error('Could not load JSON from metadata: {}'.format(error))
-        for key in ['compute', 'network', 'signature', 'pkcs7']:
-            if not metadata.get(key):
+        for key in ['compute', 'network', 'attestedData']:
+            if key not in metadata:
                 metadata[key] = {}
 
     return metadata
@@ -101,21 +105,23 @@ def _get_metadata():
 
 def _get_instance_metadata():
     """Return all compute and network information from metadata."""
-    api_latest_version = _get_latest_api_version()
+    api_version = _get_latest_api_version()
+    if not api_version:
+        # oldest API version
+        api_version = OLDEST_API_VERSION
+
+    instance_info_url = METADATA_URL + 'instance?api-version={}'.format(
+        api_version
+    )
     return json.loads(
-        _fetch_metadata(
-            INSTANCE_INFO_URL.format(latest=api_latest_version)
-        )
+        _fetch_metadata(instance_info_url)
     )
 
 
 def _get_signature():
     """Return attested data signature from metadata."""
-    api_latest_version = _get_latest_api_version()
     return json.loads(
-        _fetch_metadata(
-            SIGNATURE_URL.format(latest=api_latest_version)
-        )
+        _fetch_metadata(SIGNATURE_URL)
     )
 
 
@@ -128,12 +134,9 @@ def _get_latest_api_version():
     """
     versions = json.loads(_fetch_metadata(VERSIONS_URL))
     if versions:
-        return versions['apiVersions'][-1]
-
-    # minimum API version with license type
-    # for more info check https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#attested-data
-    return '2020-09-01'
-
+        api_all_versions = sorted(versions.get('apiVersions', []), reverse=True)
+        if api_all_versions:
+            return api_all_versions[0]
 
 def _fetch_metadata(url):
     """Return the response of the metadata request."""
