@@ -33,23 +33,23 @@ from csp_billing_adapter.config import Config
 log = logging.getLogger('CSPBillingAdapter')
 
 METADATA_URL = 'http://169.254.169.254/metadata/'
-VERSIONS_URL = METADATA_URL + 'versions'
-METADATA_TOKEN = '/identity/oauth2/token?api-version={version}&resource=https://management.azure.com/'
+# We want the attested data, this is the version that supports that endpoint
+REQUIRED_METADATA_VERSION = '2020-09-01'
+METADATA_TOKEN = ('/identity/oauth2/token?api-version=' +
+                  REQUIRED_METADATA_VERSION +
+                  '&resource=https://management.azure.com/')
 
 TOKEN_URL = METADATA_URL + METADATA_TOKEN
-# oldest API version
-OLDEST_API_VERSION = '2017-03-01'
-# minimum API version including license type in signature
-# https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#attested-data
-SIGNATURE_API_VERSION = '2020-09-01'
-SIGNATURE_URL = METADATA_URL + 'attested/document?api-version=' + SIGNATURE_API_VERSION
+SIGNATURE_URL = (METADATA_URL + 'attested/document?api-version='
+                 + REQUIRED_METADATA_VERSION)
 METADATA_HEADER = {'Metadata': 'True'}
 
 
 @csp_billing_adapter.hookimpl
 def setup_adapter(config: Config):
     """Handle any plugin specific setup at adapter start"""
-    pass
+    is_available = _is_required_metadata_version_available()
+    #TODO throw up when we don't find the necessary version
 
 
 @csp_billing_adapter.hookimpl(trylast=True)
@@ -105,14 +105,8 @@ def _get_metadata():
 
 def _get_instance_metadata():
     """Return all compute and network information from metadata."""
-    api_version = _get_latest_api_version()
-    if not api_version:
-        # oldest API version
-        api_version = OLDEST_API_VERSION
-
-    instance_info_url = METADATA_URL + 'instance?api-version={}'.format(
-        api_version
-    )
+    instance_info_url = (METADATA_URL + 'instance?api-version='
+                         + REQUIRED_METADATA_VERSION)
     return json.loads(
         _fetch_metadata(instance_info_url)
     )
@@ -125,18 +119,15 @@ def _get_signature():
     )
 
 
-def _get_latest_api_version():
+def _is_required_metadata_version_available():
     """
-    Return the newest API version available
+    Check if the metadata version we want is available
+    """
+    versions = json.loads(_fetch_metadata(METADATA_URL + 'versions'))
+    if REQUIRED_METADATA_VERSION in versions.get('apiVersions', []):
+        return True
 
-    Otherwise, return minimum API version to get
-    license type on the signature.
-    """
-    versions = json.loads(_fetch_metadata(VERSIONS_URL))
-    if versions:
-        api_all_versions = sorted(versions.get('apiVersions', []), reverse=True)
-        if api_all_versions:
-            return api_all_versions[0]
+    return False
 
 def _fetch_metadata(url):
     """Return the response of the metadata request."""
