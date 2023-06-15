@@ -50,9 +50,10 @@ METADATA_HEADER = {'Metadata': 'True'}
 def setup_adapter(config: Config):
     """Handle any plugin specific setup at adapter start"""
     is_available = _is_required_metadata_version_available()
-    raise cba_exceptions.MetadataCollectorError(
-        "Running in Azure context with insufficient IMDS API version"
-    )
+    if not is_available:
+        raise cba_exceptions.MetadataCollectorError(
+            "Running in Azure context with insufficient IMDS API version"
+        )
 
 
 @csp_billing_adapter.hookimpl(trylast=True)
