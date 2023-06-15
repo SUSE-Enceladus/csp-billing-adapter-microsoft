@@ -25,6 +25,7 @@ import urllib.request
 import urllib.error
 
 import csp_billing_adapter
+import csp_billing_adapter.exceptions as cba_exceptions
 
 from datetime import datetime
 
@@ -49,7 +50,9 @@ METADATA_HEADER = {'Metadata': 'True'}
 def setup_adapter(config: Config):
     """Handle any plugin specific setup at adapter start"""
     is_available = _is_required_metadata_version_available()
-    #TODO throw up when we don't find the necessary version
+    raise cba_exceptions.MetadataCollectorError(
+        "Running in Azure context with insufficient IMDS API version"
+    )
 
 
 @csp_billing_adapter.hookimpl(trylast=True)
