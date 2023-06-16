@@ -133,6 +133,7 @@ def _is_required_metadata_version_available():
 
     return False
 
+
 def _fetch_metadata(url):
     """Return the response of the metadata request."""
     data_request = urllib.request.Request(
@@ -149,3 +150,10 @@ def _fetch_metadata(url):
             error=str(error)
         ))
         return {}
+
+
+def _get_api_token():
+    """
+    Get the token to authenticate when using the Billing API
+   """
+    return json.loads(_fetch_metadata(TOKEN_URL))
