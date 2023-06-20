@@ -1,0 +1,29 @@
+billing_interval: monthly
+product_code: foo
+query_interval: 3600
+reporting_api_is_cumulative: true
+reporting_interval: 3600
+usage_metrics:
+  managed_node_count:
+    consumption_reporting: volume
+    dimensions:
+    - dimension: tier_1
+      min: 0
+      max: 15
+    - dimension: tier_2
+      min: 16
+      max: 50
+    - dimension: tier_3
+      min: 51
+      max: 100
+    - dimension: tier_4
+      min: 101
+      max: 250
+    - dimension: tier_5
+      min: 251
+      max: 1000
+    - dimension: tier_6
+      min: 1001
+    min_consumption: 5
+    usage_aggregation: average
+version: 1.1.1
