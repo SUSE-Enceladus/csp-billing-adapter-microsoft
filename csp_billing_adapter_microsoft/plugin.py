@@ -51,7 +51,7 @@ def setup_adapter(config: Config):
     """Handle any plugin specific setup at adapter start"""
     is_available = _is_required_metadata_version_available()
     if not is_available:
-        raise cba_exceptions.MetadataCollectorError(
+        raise cba_exceptions.CSPMetadataRetrievalError(
             "Running in Azure context with insufficient IMDS API version"
         )
 
