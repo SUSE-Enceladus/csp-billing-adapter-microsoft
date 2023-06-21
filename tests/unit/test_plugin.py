@@ -41,15 +41,13 @@ def test_setup(mock_check_metadata_version):
     plugin.setup_adapter(config)  # Currently no-op
 
 
-@pytest.mark.skipif(not hasattr(cba_exceptions, 'MetadataCollectorError'),
-                    reason='MetadataCollectorError not defined yet')
 @patch(
     'csp_billing_adapter_microsoft.plugin.'
     '_is_required_metadata_version_available'
 )
 def test_setup_adapter_fails(mock_check_metadata_version):
     mock_check_metadata_version.return_value = False
-    with pytest.raises(cba_exceptions.MetadataCollectorError):
+    with pytest.raises(cba_exceptions.CSPMetadataRetrievalError):
         plugin.setup_adapter(config)  # Cur
 
 
