@@ -21,13 +21,15 @@ metered billing of product usage in the Azure.
 
 import json
 import logging
+import os
 import urllib.request
 import urllib.error
+import uuid
 
 import csp_billing_adapter
 import csp_billing_adapter.exceptions as cba_exceptions
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from csp_billing_adapter.config import Config
 
@@ -36,11 +38,7 @@ log = logging.getLogger('CSPBillingAdapter')
 METADATA_URL = 'http://169.254.169.254/metadata/'
 # We want the attested data, this is the version that supports that endpoint
 REQUIRED_METADATA_VERSION = '2020-09-01'
-METADATA_TOKEN = ('/identity/oauth2/token?api-version=' +
-                  REQUIRED_METADATA_VERSION +
-                  '&resource=https://management.azure.com/')
 
-TOKEN_URL = METADATA_URL + METADATA_TOKEN
 SIGNATURE_URL = (METADATA_URL + 'attested/document?api-version='
                  + REQUIRED_METADATA_VERSION)
 METADATA_HEADER = {'Metadata': 'True'}
@@ -71,6 +69,70 @@ def meter_billing(
     is attempted 3 times before re-raising the exception to
     calling scope.
     """
+    metered_billing_data = {"request": []}
+
+    for dimension_name, quantity in dimensions.items():
+        if quantity == 0:
+            log.info(
+                f'"0" value reported for {dimension_name}, skipping logging'
+            )
+            continue
+
+        # Setup request body for the usage event API
+        metered_billing_data["request"].append(
+            {
+                'resourceUri': os.environ['EXTENSION_RESOURCE_ID'],
+                'quantity': quantity,
+                'dimension': dimension_name,
+                'effectiveStartTime': str(timestamp.astimezone(timezone.utc)),
+                'planId': os.environ['PLAN_ID']
+            }
+        )
+
+    if metered_billing_data["request"]:
+        metered_billing_data_bytes = json.dumps(metered_billing_data).encode()
+        # Setup request header for the usage event API
+        metered_billing_header = {
+            'Content-type': 'application/json',
+            'Content-Length': len(metered_billing_data_bytes),
+            'x-ms-correlationid': uuid.uuid4(),
+            'authorization': _get_msi_token()
+        }
+
+        # Make request to the usage event API
+        data_request = urllib.request.Request(
+            'https://marketplaceapi.microsoft.com/api/batchUsageEvent'
+            '?api-version=2018-08-31',
+            data=metered_billing_data_bytes,
+            headers=metered_billing_header,
+            method='POST'
+        )
+
+        exc = None
+        value = None
+        retries = 3
+
+        while retries > 0:
+            try:
+                value = urllib.request.urlopen(data_request).read()
+                retries = 0
+            except urllib.error.URLError as error:
+                exc = error
+                retries -= 1
+                continue
+
+        if exc:
+            log.error(
+                f'Cannot call batchUsageEvent API for: {metered_billing_data}:'
+                f'return from http POST request is; {exc}'
+            )
+            raise exc  # Re-raise exception to calling scope
+
+        if value and _create_metered_billing_response(value):
+            return _create_metered_billing_response(value)
+
+    log.info('Nothing to meter bill: No tiers have non zero quantity values')
+    return None
 
 
 @csp_billing_adapter.hookimpl(trylast=True)
@@ -99,7 +161,7 @@ def _get_metadata():
         metadata = _get_instance_metadata()
         metadata['attestedData'] = _get_signature()
     except ValueError as error:
-        log.error('Could not load JSON from metadata: {}'.format(error))
+        log.error(f'Could not load JSON from metadata: {error}')
         for key in ['compute', 'network', 'attestedData']:
             if key not in metadata:
                 metadata[key] = {}
@@ -109,8 +171,8 @@ def _get_metadata():
 
 def _get_instance_metadata():
     """Return all compute and network information from metadata."""
-    instance_info_url = (METADATA_URL + 'instance?api-version='
-                         + REQUIRED_METADATA_VERSION)
+    instance_info_url = \
+        f'{METADATA_URL}instance?api-version={REQUIRED_METADATA_VERSION}'
     return json.loads(
         _fetch_metadata(instance_info_url)
     )
@@ -128,10 +190,7 @@ def _is_required_metadata_version_available():
     Check if the metadata version we want is available
     """
     versions = json.loads(_fetch_metadata(METADATA_URL + 'versions'))
-    if REQUIRED_METADATA_VERSION in versions.get('apiVersions', []):
-        return True
-
-    return False
+    return REQUIRED_METADATA_VERSION in versions.get('apiVersions', [])
 
 
 def _fetch_metadata(url):
@@ -145,15 +204,49 @@ def _fetch_metadata(url):
         value = urllib.request.urlopen(data_request).read()
         return value.decode()
     except urllib.error.URLError as error:
-        log.error('Failed to retrieve metadata for: {url}. {error}'.format(
-            url=url,
-            error=str(error)
-        ))
+        log.error(f'Failed to retrieve metadata for: {url}. {str(error)}')
         return {}
 
 
-def _get_api_token():
-    """
-    Get the token to authenticate when using the Billing API
-   """
-    return json.loads(_fetch_metadata(TOKEN_URL))
+def _get_msi_token():
+    """Get the MSI token to authenticate when using the Billing API"""
+    # https://learn.microsoft.com/en-us/partner-center/marketplace/marketplace-metering-service-authentication
+
+    resource = '20e940b3-4c77-4b0b-9a53-9e16a1b010a7'
+    clientid = os.environ['CLIENT_ID']
+    msi_url = (
+        f"{METADATA_URL}"
+        f"identity/oauth2/token?api-version=2018-02-01&clientId={clientid}"
+        f"&resource={resource}"
+    )
+    try:
+        auth_token = json.loads(_fetch_metadata(msi_url))
+        if auth_token["token_type"] == "Bearer" and auth_token["access_token"]:
+            return "Bearer " + auth_token["access_token"]
+        log.error('Invalid MSI token retrieved: {auth_token}')
+        raise cba_exceptions.CSPBillingAdapterException
+    except ValueError as error:
+        log.error(f'Unable to acquire an MSI token: {error}')
+        raise cba_exceptions.CSPBillingAdapterException from error
+
+
+def _create_metered_billing_response(value):
+    """Return a dict of the dimension and metered billing record id"""
+    metered_billing_response = {}
+    if value and value.get("count") > 0:
+        for resp in value["result"]:
+            if resp["status"] == "Accepted":
+                metered_billing_response[resp["dimension"]] = \
+                    {"record_id": resp["usageEventId"], "status": "submitted"}
+                log.info(
+                    f'New metered billing record added: '
+                    f'{resp["dimension"]}: {resp["usageEventId"]}'
+                )
+            else:
+                metered_billing_response[resp["dimension"]] = \
+                    {'record_id': None, 'status': 'failed'}
+                log.error(
+                    f'Unable to log metered billing record: '
+                    f'return from batchUsageEvent API is {resp}'
+                )
+    return (metered_billing_response or None)
