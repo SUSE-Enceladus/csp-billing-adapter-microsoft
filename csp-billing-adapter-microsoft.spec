@@ -37,8 +37,8 @@ BuildRequires:  %{python_module coverage}
 BuildRequires:  %{python_module pytest-cov}
 %endif
 Requires:       python-setuptools
-Requires:       python3-pluggy
-Requires:       csp-billing-adapter
+Requires:       python-pluggy
+Requires:       python-csp-billing-adapter
 BuildArch:      noarch
 %python_subpackages
 
@@ -63,7 +63,7 @@ pytest
 
 %files %{python_files}
 %license LICENSE
-%doc README.md CONTRIBUTING.md
+%doc README.md CONTRIBUTING.md CHANGES.md
 %{python_sitelib}/csp_billing_adapter_microsoft
 %{python_sitelib}/csp_billing_adapter_microsoft*-info
 #%{python_sitelib}/csp_billing_adapter-%{version}*-info
