@@ -32,6 +32,7 @@ import csp_billing_adapter
 import csp_billing_adapter.exceptions as cba_exceptions
 
 from csp_billing_adapter.config import Config
+from csp_billing_adapter_microsoft import __version__
 
 log = logging.getLogger('CSPBillingAdapter')
 
@@ -276,3 +277,8 @@ def _create_status_dict(response: dict):
             }
         status[resp["dimension"]] = dim_status
     return status
+
+
+@csp_billing_adapter.hookimpl
+def get_version():
+    return ('microsoft_plugin', __version__)
