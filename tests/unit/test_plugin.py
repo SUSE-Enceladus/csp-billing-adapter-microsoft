@@ -417,3 +417,9 @@ def test_get_msi_token_invalid(mock_urlopen, mock_os_environ, caplog):
         plugin._get_msi_token()
 
     assert "Invalid MSI token retrieved" in caplog.records[0].msg
+
+
+def test_get_version():
+    version = plugin.get_version()
+    assert version[0] == 'microsoft_plugin'
+    assert version[1]
