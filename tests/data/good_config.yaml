@@ -1,5 +1,5 @@
 billing_interval: monthly
-product_code: foo
+product_code: foo:bar:foobar:barfoo
 query_interval: 3600
 reporting_api_is_cumulative: true
 reporting_interval: 3600

@@ -39,11 +39,14 @@ log = logging.getLogger('CSPBillingAdapter')
 METADATA_URL = 'http://169.254.169.254/metadata/'
 # We want the attested data, this is the version that supports that endpoint
 REQUIRED_METADATA_VERSION = '2020-09-01'
-
 SIGNATURE_URL = (
     f"{METADATA_URL}attested/document?api-version={REQUIRED_METADATA_VERSION}"
 )
 METADATA_HEADER = {'Metadata': 'True'}
+TOKEN_API_VERSION = '2018-02-01'
+TOKEN_RESOURCE = 'https://management.azure.com/'
+MANAGED_IDENTITY_URL = 'https://management.azure.com/subscriptions/'
+MANAGED_IDENTITY_VERSION = '2019-10-01'
 
 
 @csp_billing_adapter.hookimpl
@@ -73,7 +76,7 @@ def meter_billing(
     """
 
     status = {}
-    usage = _create_usage_list(dimensions, timestamp)
+    usage = _create_usage_list(dimensions, timestamp, config)
 
     if len(usage) > 0:
         data_request = urllib.request.Request(
@@ -83,7 +86,7 @@ def meter_billing(
             headers={
                 'Content-type': 'application/json',
                 'x-ms-correlationid': str(uuid.uuid4()),
-                'authorization': _get_msi_token()
+                'authorization': _get_msi_token(config)
             },
             method='POST'
         )
@@ -199,19 +202,31 @@ def _fetch_metadata(url):
         return "{}"
 
 
-def _get_msi_token():
+def _get_msi_token(config: Config):
     """Get the MSI token to authenticate when using the Billing API"""
     # https://learn.microsoft.com/en-us/partner-center/marketplace/marketplace-metering-service-authentication
 
     # Set resource id to the required value needed to to retrieve an
     # MSI Authentication Token
-    resource = '20e940b3-4c77-4b0b-9a53-9e16a1b010a7'
-    client_id = os.environ['CLIENT_ID']
-    url = (
-        f"{METADATA_URL}"
-        f"identity/oauth2/token?api-version=2018-02-01&client_id={client_id}"
-        f"&resource={resource}"
-    )
+    try:
+        config['api']
+        # if config has API key, it is running on a VM
+        url = (
+            'http://169.254.169.254/metadata/identity/oauth2/token'
+            f'?api-version={TOKEN_API_VERSION}'
+            f'&resource={TOKEN_RESOURCE}'
+        )
+    except KeyError:
+        # it is running on k8s
+        resource = '20e940b3-4c77-4b0b-9a53-9e16a1b010a7'
+        client_id = os.environ['CLIENT_ID']
+        url = (
+            f"{METADATA_URL}"
+            f"identity/oauth2/token?api-version=2018-02-01"
+            f"&client_id={client_id}"
+            f"&resource={resource}"
+        )
+
     try:
         auth_token = json.loads(_fetch_metadata(url))
 
@@ -225,10 +240,21 @@ def _get_msi_token():
         raise cba_exceptions.CSPBillingAdapterException from error
 
 
-def _create_usage_list(dimensions: dict, timestamp: datetime):
+def _create_usage_list(dimensions: dict, timestamp: datetime, config: Config):
     """Create the usage list used with the batchEventUsage API"""
 
     usage = []
+    try:
+        resource_uri = os.environ['EXTENSION_RESOURCE_ID']
+        plan_id = os.environ['PLAN_ID']
+    except KeyError:
+        # if not present, it is running on a VM
+        resource_uri = _get_resource_uri()
+        product_code = config['product_code']
+        # product code has the format
+        # publisher:product_name:plan:version
+        plan_id = product_code.split(':')[2]
+
     for dimension_name, quantity in dimensions.items():
         if quantity == 0:
             log.info(
@@ -240,14 +266,60 @@ def _create_usage_list(dimensions: dict, timestamp: datetime):
         # Setup request body for the usage event API
         usage.append(
             {
-                'resourceUri': os.environ['EXTENSION_RESOURCE_ID'],
+                'resourceUri': resource_uri,
                 'quantity': quantity,
                 'dimension': dimension_name,
                 'effectiveStartTime': str(timestamp),
-                'planId': os.environ['PLAN_ID']
+                'planId': plan_id
             }
         )
     return usage
+
+
+def _get_managed_identity():
+    instance_metadata = _get_instance_metadata()
+    try:
+        compute = instance_metadata['compute']
+        url = (
+            f"{MANAGED_IDENTITY_URL}/"
+            f"{compute['subscriptionId']}/"
+            f"resourceGroups/{compute['resourceGroupName']}"
+            f"?api-version={MANAGED_IDENTITY_VERSION}"
+        )
+    except KeyError as err:
+        message = (
+            'Could not retrieve the managed identity: '
+            f'the metadata had missing values {err}'
+        )
+        raise cba_exceptions.CSPMetadataRetrievalError(message)
+
+    token = _get_msi_token({'api': '1'})
+    data_request = urllib.request.Request(
+        url,
+        headers={'authorization': token},
+        method='GET'
+    )
+    try:
+        with urllib.request.urlopen(data_request) as value:
+            return json.loads(
+                value.read().decode("utf-8")
+            )
+    except urllib.error.URLError as error:
+        log.error(
+            f'Failed to retrieve managed identity for: {url}: {str(error)}'
+        )
+        return {}
+
+
+def _get_resource_uri():
+    managed_identity = _get_managed_identity()
+    try:
+        return managed_identity['managedBy']
+    except KeyError:
+        log.error(
+            'Failed to retrieve resource uri '
+            'managed identity response missing managedBy'
+        )
 
 
 def _create_status_dict(response: dict):
