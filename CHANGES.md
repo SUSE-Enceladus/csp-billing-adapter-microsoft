@@ -1,3 +1,14 @@
+v0.2.1 (2023-10-27)
+-------------------
+
+Get credentials for VM:
+  - Get token for VM
+  - Get resourceUri
+  - Get managed identity and use managedBy field
+  - Get plan ID
+  - Read config product code and parse it to extract plan id
+  - Add tests
+
 v0.2.0 (2023-09-20)
 -------------------
 
