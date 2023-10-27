@@ -19,7 +19,7 @@
 %global skip_python2 1
 %define pythons python3
 Name:           csp-billing-adapter-microsoft
-Version:        0.2.0
+Version:        0.2.1
 Release:        0
 Summary:        Implements Microsoft metering hooks for csp-billing-adapter
 License:        Apache-2.0
