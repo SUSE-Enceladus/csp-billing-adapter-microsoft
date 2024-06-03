@@ -18,7 +18,7 @@
 %{?sle15_python_module_pythons}
 
 Name:           csp-billing-adapter-microsoft
-Version:        0.2.1
+Version:        1.0.0
 Release:        0
 Summary:        Implements Microsoft metering hooks for csp-billing-adapter
 License:        Apache-2.0
