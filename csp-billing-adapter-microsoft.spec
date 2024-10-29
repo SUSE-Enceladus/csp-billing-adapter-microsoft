@@ -41,6 +41,7 @@ Requires:       python-setuptools
 Requires:       python-pluggy
 Requires:       python-csp-billing-adapter
 BuildArch:      noarch
+Obsoletes:      python3-csp-billing-adapter-microsoft < %{version}
 %python_subpackages
 
 %description
