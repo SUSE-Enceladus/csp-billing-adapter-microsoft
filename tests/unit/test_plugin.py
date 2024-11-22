@@ -23,9 +23,9 @@ import urllib.error
 
 from unittest.mock import Mock, MagicMock, patch
 
+from csp_billing_adapter.adapter import get_plugin_manager
 from csp_billing_adapter_microsoft import plugin
 from csp_billing_adapter.config import Config
-from csp_billing_adapter.adapter import get_plugin_manager
 import csp_billing_adapter.exceptions as cba_exceptions
 
 
@@ -97,6 +97,8 @@ def test_meter_billing(mock_urlopen, mock_get_msi_token, caplog):
         config,
         dimensions,
         timestamp,
+        '2024-10-02T17:58:09.985794+00:00',
+        '2024-10-02T17:58:09.985794+00:00',
         dry_run=False
     )
     assert usage_id["tier_1"] == {"record_id": "1000", "status": "submitted"}
@@ -125,7 +127,14 @@ def test_meter_billing_urllib_error(mock_urlopen, mock_get_msi_token):
     timestamp = datetime.datetime.now(datetime.timezone.utc)
 
     mock_urlopen.return_value = urlopen
-    usage = plugin.meter_billing(config, dimensions, timestamp, dry_run=False)
+    usage = plugin.meter_billing(
+        config,
+        dimensions,
+        timestamp,
+        '2024-10-02T17:58:09.985794+00:00',
+        '2024-10-02T17:58:09.985794+00:00',
+        dry_run=False
+    )
     assert usage["tier_1"] == {
         'status': 'failed',
         'error': "Failed to meter bill dimensions {'tier_1': 10}: "
@@ -163,6 +172,8 @@ def test_meter_billing_quantity_is_zero(
         config,
         dimensions,
         timestamp,
+        '2024-10-02T17:58:09.985794+00:00',
+        '2024-10-02T17:58:09.985794+00:00',
         dry_run=False
     ) == {}
 
@@ -225,6 +236,8 @@ def test_meter_billing_non_accepted_status_from_batchUsageEvent(
         config,
         dimensions,
         timestamp,
+        '2024-10-02T17:58:09.985794+00:00',
+        '2024-10-02T17:58:09.985794+00:00',
         dry_run=False
     )
     assert test_record["tier_1"].get("record_id") is None
@@ -292,6 +305,8 @@ def test_meter_billing_non_accepted_status_from_batchUsageEvent_vm(
         config,
         dimensions,
         timestamp,
+        '2024-10-02T17:58:09.985794+00:00',
+        '2024-10-02T17:58:09.985794+00:00',
         dry_run=False
     )
     assert test_record["tier_1"].get("record_id") is None
@@ -354,6 +369,8 @@ def test_meter_billing_missing_keys_in_response_from_batchUsageEvent(
         config,
         dimensions,
         timestamp,
+        '2024-10-02T17:58:09.985794+00:00',
+        '2024-10-02T17:58:09.985794+00:00',
         dry_run=False
     )
 

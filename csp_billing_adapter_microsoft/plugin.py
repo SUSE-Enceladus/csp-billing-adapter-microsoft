@@ -64,6 +64,8 @@ def meter_billing(
     config: Config,
     dimensions: dict,
     timestamp: datetime,
+    billing_period_start: str,
+    billing_period_end: str,
     dry_run: bool
 ):
     """
