@@ -1,3 +1,8 @@
+v1.1.0 (2024-11-25)
+-------------------
+
+- Add plugin file with plugin name for verification
+
 v1.0.0 (2024-06-03)
 -------------------
 
