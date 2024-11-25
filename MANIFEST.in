@@ -1,6 +1,7 @@
 include LICENSE
 include CONTRIBUTING.md
 include README.md
+include CHANGES.md
 include csp-billing-adapter-microsoft.spec
 include requirements.txt
 include requirements-test.txt
