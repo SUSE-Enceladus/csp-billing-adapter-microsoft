@@ -1,3 +1,8 @@
+v1.2.0 (2025-02-21)
+-------------------
+
+- Add customer id to handle subscription billing
+
 v1.1.0 (2024-11-25)
 -------------------
 
