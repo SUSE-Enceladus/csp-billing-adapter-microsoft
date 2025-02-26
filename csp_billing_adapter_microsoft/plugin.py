@@ -209,7 +209,8 @@ def _get_msi_token(config: Config):
 
     # Set resource id to the required value needed to to retrieve an
     # MSI Authentication Token
-    if config.get('api') and config['api'] != 'no_data_query':
+    usage_api = config.get('api')
+    if usage_api and usage_api != 'no_data_query':
         # running a vm
         url = (
             'http://169.254.169.254/metadata/identity/oauth2/token'
