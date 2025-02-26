@@ -209,15 +209,14 @@ def _get_msi_token(config: Config):
 
     # Set resource id to the required value needed to to retrieve an
     # MSI Authentication Token
-    try:
-        config['api']
-        # if config has API key, it is running on a VM
+    if config.get('api') and config['api'] != 'no_data_query':
+        # running a vm
         url = (
             'http://169.254.169.254/metadata/identity/oauth2/token'
             f'?api-version={TOKEN_API_VERSION}'
             f'&resource={TOKEN_RESOURCE}'
         )
-    except KeyError:
+    else:
         # it is running on k8s
         resource = '20e940b3-4c77-4b0b-9a53-9e16a1b010a7'
         client_id = os.environ['CLIENT_ID']
