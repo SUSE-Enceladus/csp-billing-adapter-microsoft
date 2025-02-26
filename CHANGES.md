@@ -1,3 +1,8 @@
+v1.2.1 (2025-02-26)
+-------------------
+
+- Fix bug in meter billing. Handle no api flag in config file
+
 v1.2.0 (2025-02-21)
 -------------------
 
