@@ -97,7 +97,8 @@ def test_meter_billing(mock_urlopen, mock_get_msi_token, caplog):
         config,
         dimensions,
         timestamp,
-        dry_run=False
+        dry_run=False,
+        customer_id='123'
     )
     assert usage_id["tier_1"] == {"record_id": "1000", "status": "submitted"}
     assert "New metered billing record added" in caplog.records[0].msg
@@ -125,7 +126,13 @@ def test_meter_billing_urllib_error(mock_urlopen, mock_get_msi_token):
     timestamp = datetime.datetime.now(datetime.timezone.utc)
 
     mock_urlopen.return_value = urlopen
-    usage = plugin.meter_billing(config, dimensions, timestamp, dry_run=False)
+    usage = plugin.meter_billing(
+        config,
+        dimensions,
+        timestamp,
+        dry_run=False,
+        customer_id='123'
+    )
     assert usage["tier_1"] == {
         'status': 'failed',
         'error': "Failed to meter bill dimensions {'tier_1': 10}: "
@@ -163,7 +170,8 @@ def test_meter_billing_quantity_is_zero(
         config,
         dimensions,
         timestamp,
-        dry_run=False
+        dry_run=False,
+        customer_id='123'
     ) == {}
 
     assert 'A "0" value was reported for' in caplog.records[0].msg
@@ -225,7 +233,8 @@ def test_meter_billing_non_accepted_status_from_batchUsageEvent(
         config,
         dimensions,
         timestamp,
-        dry_run=False
+        dry_run=False,
+        customer_id='123'
     )
     assert test_record["tier_1"].get("record_id") is None
     assert test_record["tier_1"].get("status") == 'failed'
@@ -292,7 +301,8 @@ def test_meter_billing_non_accepted_status_from_batchUsageEvent_vm(
         config,
         dimensions,
         timestamp,
-        dry_run=False
+        dry_run=False,
+        customer_id='123'
     )
     assert test_record["tier_1"].get("record_id") is None
     assert test_record["tier_1"].get("status") == 'failed'
@@ -354,7 +364,8 @@ def test_meter_billing_missing_keys_in_response_from_batchUsageEvent(
         config,
         dimensions,
         timestamp,
-        dry_run=False
+        dry_run=False,
+        customer_id='123'
     )
 
     assert test_record["tier_1"].get("status") == "failed"
